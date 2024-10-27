@@ -1,0 +1,100 @@
+void automation.sendNotification1(String Appoint_owner)
+{
+// Log the booking ID being used
+info "Appoint Owner: " + Appoint_owner;
+// Fetch lead by name to get the ID
+search_criteria = "(Email:equals:" + Appoint_owner + ")";
+search_response = zoho.crm.searchRecords("Appoint",search_criteria);
+// Log search response
+info "Search Response: " + search_response.toString();
+// Check if lead is found
+if(search_response != null && search_response.size() > 0)
+{
+	Appoint_id = search_response.get(0).get("id");
+	info "Appoint ID: " + Appoint_id;
+	// Log the Lead ID
+}
+else
+{
+	info "No lead found with the name: " + Appoint_owner;
+	return;
+	// Exit if no lead found
+}
+// Initialize function and fetch the lead record by ID
+response = zoho.crm.getRecordById("Appoint",Appoint_id);
+// Debugging output: Print the full response
+info "Response from getRecordById: " + response.toString();
+// Check if the response is not empty and has data
+if(response != null && response.get("data") != null)
+{
+	// Check if the status is failure
+	if(response.get("status") != null && response.get("status") == "failure")
+	{
+		info "Error fetching record: " + response.get("message");
+		return;
+	}
+	// Extract necessary fields from the response
+	client_name = response.get("Appoint_Name");
+	appointment_date = response.get("Appointment_Date_Time");
+	email = response.get("Email");
+	service_type = response.get("Service_Type");
+	// Debugging output for extracted fields
+	info "Client Name: " + client_name;
+	info "Appoint Date: " + appointment_date;
+	info "Email: " + email;
+	info "Service Type: " + service_type;
+	// Validation: Ensure date and time are filled
+	if(appointment_date == null)
+	{
+		info "Error: Appointment Date or Time is missing";
+		return;
+	}
+	// Prepare the appointment date in a suitable format
+	appointment_date_time = appointment_date.toString("yyyy-MM-dd");
+	// Update status and create a CRM Task
+	appointment_map = Map();
+	appointment_map.put("Status","Confirmed");
+	appointment_map.put("Description","Appointment booked and notification sent.");
+	update_response = zoho.crm.updateRecord("Appoint",Appoint_id,appointment_map);
+	// Log update response
+	info "Update Response: " + update_response.toString();
+	// Add a reminder task
+	reminder_task = Map();
+	reminder_task.put("Subject","Reminder: " + client_name + " Appointment");
+	reminder_task.put("Due_Date",appointment_date);
+	reminder_task.put("What_Id",Appoint_id);
+	// Link task to Appointment
+	task_response = zoho.crm.createRecord("Tasks",reminder_task);
+	info "Task Response: " + task_response.toString();
+	// Optional: Integration with Airtable for additional tracking
+	airtableAPIKey = "your API KEY";
+	airtableBaseID = "your BASE ID";
+	airtableTableName = "Appoint";
+	// Create a record for Airtable
+	airtableRecord = Map();
+	fieldsMap = Map();
+	fieldsMap.put("Client Name",client_name);
+	fieldsMap.put("Appointment Date & Time",appointment_date_time);
+	fieldsMap.put("Service Type",service_type);
+	fieldsMap.put("Email",email);
+	fieldsMap.put("Status","Confirmed");
+	airtableRecord.put("fields",fieldsMap);
+	// Make an API call to Airtable
+	airtableResponse = postUrl("https://api.airtable.com/v0/" + airtableBaseID + "/" + airtableTableName,airtableRecord.toString(),{"Authorization":"Bearer " + airtableAPIKey,"Content-Type":"application/json"});
+	// Debugging output: Print the Airtable response
+	info "Airtable API Response: " + airtableResponse.toString();
+	// Check if the response indicates success or failure
+	if(airtableResponse.get("id") != null)
+	{
+		info "Record successfully created in Airtable with ID: " + airtableResponse.get("id");
+	}
+	else
+	{
+		info "Failed to create record in Airtable: " + airtableResponse.toString();
+	}
+}
+else
+{
+	info "Error: Lead record not found.";
+}
+}
